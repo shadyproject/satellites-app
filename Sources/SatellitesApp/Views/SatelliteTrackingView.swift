@@ -4,154 +4,221 @@ import SatellitesKit
 /// Main view for tracking a satellite.
 struct SatelliteTrackingView: View {
     @State private var viewModel = SatelliteViewModel()
+    @State private var showInfoPanel = false
 
     var body: some View {
-        NavigationStack {
+        ZStack(alignment: .bottom) {
+            // Full-screen map
+            GroundTrackMapView(
+                groundTrack: viewModel.groundTrack,
+                currentPosition: viewModel.currentPosition,
+                observer: viewModel.observer,
+                onSatelliteTapped: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showInfoPanel.toggle()
+                    }
+                }
+            )
+            .ignoresSafeArea()
+
+            // Sliding info panel
+            if showInfoPanel {
+                SatelliteInfoPanel(
+                    viewModel: viewModel,
+                    isPresented: $showInfoPanel
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            // Tracking indicator overlay
+            VStack {
+                HStack {
+                    TrackingStatusBadge(
+                        satelliteName: viewModel.satelliteName,
+                        isTracking: viewModel.isTracking,
+                        isAboveHorizon: viewModel.isAboveHorizon
+                    )
+                    Spacer()
+                }
+                .padding()
+                Spacer()
+            }
+        }
+        .onAppear {
+            viewModel.startTracking()
+        }
+        .onDisappear {
+            viewModel.stopTracking()
+        }
+    }
+}
+
+// MARK: - Tracking Status Badge
+
+struct TrackingStatusBadge: View {
+    let satelliteName: String
+    let isTracking: Bool
+    let isAboveHorizon: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(isTracking ? (isAboveHorizon ? .green : .orange) : .red)
+                .frame(width: 8, height: 8)
+
+            Text(satelliteName)
+                .font(.subheadline)
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: Capsule())
+    }
+}
+
+// MARK: - Satellite Info Panel
+
+struct SatelliteInfoPanel: View {
+    let viewModel: SatelliteViewModel
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Drag handle
+            Capsule()
+                .fill(.secondary.opacity(0.5))
+                .frame(width: 36, height: 5)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+
+            // Header with mission patch
+            HStack(alignment: .top, spacing: 12) {
+                // Mission patch
+                Image("NROL39PatchLarge")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 80, height: 80)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.satelliteName)
+                        .font(.headline)
+                    Text("NORAD \(viewModel.noradID)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("NROL-39 Mission")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isPresented = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 16)
+
+            Divider()
+
+            // Position info
             ScrollView {
-                VStack(spacing: 20) {
-                    headerSection
-                    positionSection
-                    observerSection
-                    orbitalParametersSection
-                    groundTrackSection
+                VStack(spacing: 16) {
+                    // Current Position Section
+                    InfoSection(title: "Position") {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 12) {
+                            InfoItem(label: "Latitude", value: viewModel.latitude)
+                            InfoItem(label: "Longitude", value: viewModel.longitude)
+                            InfoItem(label: "Altitude", value: viewModel.altitude)
+                            InfoItem(label: "Range", value: viewModel.range)
+                        }
+                    }
+
+                    // Observer Section
+                    InfoSection(title: "From \(viewModel.observer.name)") {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 12) {
+                            InfoItem(label: "Azimuth", value: viewModel.azimuth + "\u{00B0}")
+                            InfoItem(label: "Elevation", value: viewModel.elevation + "\u{00B0}")
+                            InfoItem(
+                                label: "Visibility",
+                                value: viewModel.isAboveHorizon ? "Visible" : "Below Horizon",
+                                valueColor: viewModel.isAboveHorizon ? .green : .secondary
+                            )
+                        }
+                    }
+
+                    // Orbital Parameters Section
+                    InfoSection(title: "Orbital Parameters") {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible())
+                        ], spacing: 12) {
+                            InfoItem(label: "Period", value: viewModel.orbitalPeriod)
+                            InfoItem(label: "Inclination", value: viewModel.inclinationDegrees + "\u{00B0}")
+                        }
+                    }
                 }
                 .padding()
             }
-            .navigationTitle("Satellite Tracker")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        if viewModel.isTracking {
-                            viewModel.stopTracking()
-                        } else {
-                            viewModel.startTracking()
+        }
+        .frame(maxHeight: 400)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+        .gesture(
+            DragGesture()
+                .onEnded { gesture in
+                    if gesture.translation.height > 100 {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isPresented = false
                         }
-                    } label: {
-                        Image(systemName: viewModel.isTracking ? "pause.fill" : "play.fill")
                     }
                 }
-            }
-            .onAppear {
-                viewModel.startTracking()
-            }
-            .onDisappear {
-                viewModel.stopTracking()
-            }
-        }
-    }
-
-    // MARK: - Sections
-
-    private var headerSection: some View {
-        VStack(spacing: 8) {
-            Text(viewModel.satelliteName)
-                .font(.title)
-                .fontWeight(.bold)
-
-            Text("NORAD ID: \(viewModel.noradID)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                StatusIndicator(
-                    isActive: viewModel.isAboveHorizon,
-                    activeText: "Above Horizon",
-                    inactiveText: "Below Horizon"
-                )
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var positionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Current Position")
-
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 16) {
-                DataCard(label: "Latitude", value: viewModel.latitude)
-                DataCard(label: "Longitude", value: viewModel.longitude)
-                DataCard(label: "Altitude", value: viewModel.altitude)
-                DataCard(label: "Range", value: viewModel.range)
-            }
-        }
-    }
-
-    private var observerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "From Observer (\(viewModel.observer.name))")
-
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 16) {
-                DataCard(label: "Azimuth", value: viewModel.azimuth + "\u{00B0}")
-                DataCard(label: "Elevation", value: viewModel.elevation + "\u{00B0}")
-                DataCard(label: "Range", value: viewModel.range)
-            }
-        }
-    }
-
-    private var orbitalParametersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Orbital Parameters")
-
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 16) {
-                DataCard(label: "Period", value: viewModel.orbitalPeriod)
-                DataCard(label: "Inclination", value: viewModel.inclinationDegrees + "\u{00B0}")
-            }
-        }
-    }
-
-    private var groundTrackSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Ground Track")
-
-            if !viewModel.groundTrack.isEmpty {
-                GroundTrackMapView(
-                    groundTrack: viewModel.groundTrack,
-                    currentPosition: viewModel.currentPosition,
-                    observer: viewModel.observer
-                )
-                .frame(height: 300)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                Text("Calculating ground track...")
-                    .foregroundStyle(.secondary)
-                    .frame(height: 200)
-                    .frame(maxWidth: .infinity)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            }
-        }
+        )
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Info Section
 
-struct SectionHeader: View {
+struct InfoSection<Content: View>: View {
     let title: String
+    @ViewBuilder let content: Content
 
     var body: some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(.primary)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-struct DataCard: View {
+// MARK: - Info Item
+
+struct InfoItem: View {
     let label: String
     let value: String
+    var valueColor: Color = .primary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -161,30 +228,9 @@ struct DataCard: View {
             Text(value)
                 .font(.system(.body, design: .monospaced))
                 .fontWeight(.medium)
+                .foregroundStyle(valueColor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-struct StatusIndicator: View {
-    let isActive: Bool
-    let activeText: String
-    let inactiveText: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(isActive ? .green : .red)
-                .frame(width: 8, height: 8)
-            Text(isActive ? activeText : inactiveText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.regularMaterial, in: Capsule())
     }
 }
 

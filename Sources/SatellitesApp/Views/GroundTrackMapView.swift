@@ -7,6 +7,7 @@ struct GroundTrackMapView: View {
     let groundTrack: [GeodeticPosition]
     let currentPosition: GeodeticPosition?
     let observer: GroundStation
+    var onSatelliteTapped: (() -> Void)?
 
     @State private var cameraPosition: MapCameraPosition = .automatic
 
@@ -21,13 +22,13 @@ struct GroundTrackMapView: View {
             // Current satellite position
             if let pos = currentPosition {
                 Annotation(
-                    "Satellite",
+                    "",
                     coordinate: CLLocationCoordinate2D(
                         latitude: pos.latitude,
                         longitude: pos.longitude
                     )
                 ) {
-                    SatelliteMarker()
+                    SatelliteMarker(onTap: onSatelliteTapped)
                 }
             }
 
@@ -43,16 +44,27 @@ struct GroundTrackMapView: View {
             }
         }
         .mapStyle(.imagery(elevation: .flat))
+        .mapControls {
+            MapCompass()
+            MapScaleView()
+        }
         .onAppear {
-            if let pos = currentPosition {
-                cameraPosition = .region(MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(
-                        latitude: pos.latitude,
-                        longitude: pos.longitude
-                    ),
-                    span: MKCoordinateSpan(latitudeDelta: 60, longitudeDelta: 60)
-                ))
-            }
+            updateCameraPosition()
+        }
+        .onChange(of: currentPosition?.latitude) { _, _ in
+            // Only update camera on first position, then let user control
+        }
+    }
+
+    private func updateCameraPosition() {
+        if let pos = currentPosition {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(
+                    latitude: pos.latitude,
+                    longitude: pos.longitude
+                ),
+                span: MKCoordinateSpan(latitudeDelta: 60, longitudeDelta: 60)
+            ))
         }
     }
 
@@ -99,18 +111,37 @@ struct GroundTrackMapView: View {
 
 /// Marker for satellite position on map.
 struct SatelliteMarker: View {
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(.red)
-                .frame(width: 20, height: 20)
+    var onTap: (() -> Void)?
 
-            Image(systemName: "airplane")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white)
-                .rotationEffect(.degrees(-45))
+    @State private var isPulsing = false
+
+    var body: some View {
+        Button {
+            onTap?()
+        } label: {
+            ZStack {
+                // Pulse ring
+                Circle()
+                    .stroke(.yellow.opacity(0.6), lineWidth: 2)
+                    .frame(width: 48, height: 48)
+                    .scaleEffect(isPulsing ? 1.4 : 1.0)
+                    .opacity(isPulsing ? 0 : 0.8)
+
+                // NROL-39 mission patch
+                Image("NROL39Patch")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+            }
         }
-        .shadow(radius: 3)
+        .buttonStyle(.plain)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                isPulsing = true
+            }
+        }
     }
 }
 
@@ -121,12 +152,12 @@ struct ObserverMarker: View {
             Circle()
                 .fill(.green)
                 .frame(width: 16, height: 16)
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
 
             Image(systemName: "person.fill")
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(.white)
         }
-        .shadow(radius: 2)
     }
 }
 
@@ -139,6 +170,7 @@ struct ObserverMarker: View {
             altitude: 1100,
             date: Date()
         ),
-        observer: .sanFrancisco
+        observer: .sanFrancisco,
+        onSatelliteTapped: {}
     )
 }
