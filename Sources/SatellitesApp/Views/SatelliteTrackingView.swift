@@ -8,6 +8,7 @@ struct SatelliteTrackingView: View {
     @State private var showSidebar = false
     @State private var selectedSatellite: TrackedSatellite? = .usa247
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    @State private var focusTrigger = 0
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -27,7 +28,8 @@ struct SatelliteTrackingView: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showInfoPanel.toggle()
                         }
-                    }
+                    },
+                    focusTrigger: focusTrigger
                 )
                 .ignoresSafeArea()
 
@@ -87,6 +89,10 @@ struct SatelliteTrackingView: View {
         .onChange(of: selectedSatellite) { _, newValue in
             if let satellite = newValue {
                 viewModel.loadSatellite(satellite)
+                // Delay focus to allow position calculation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    focusTrigger += 1
+                }
             }
         }
         .onAppear {
