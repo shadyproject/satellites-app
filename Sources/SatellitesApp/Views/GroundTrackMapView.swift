@@ -8,6 +8,7 @@ struct GroundTrackMapView: View {
     let currentPosition: GeodeticPosition?
     let observer: GroundStation
     var onSatelliteTapped: (() -> Void)?
+    var focusTrigger: Int = 0
 
     @State private var cameraPosition: MapCameraPosition = .automatic
 
@@ -49,22 +50,24 @@ struct GroundTrackMapView: View {
             MapScaleView()
         }
         .onAppear {
-            updateCameraPosition()
+            focusOnSatellite()
         }
-        .onChange(of: currentPosition?.latitude) { _, _ in
-            // Only update camera on first position, then let user control
+        .onChange(of: focusTrigger) { _, _ in
+            focusOnSatellite()
         }
     }
 
-    private func updateCameraPosition() {
+    private func focusOnSatellite() {
         if let pos = currentPosition {
-            cameraPosition = .region(MKCoordinateRegion(
-                center: CLLocationCoordinate2D(
-                    latitude: pos.latitude,
-                    longitude: pos.longitude
-                ),
-                span: MKCoordinateSpan(latitudeDelta: 60, longitudeDelta: 60)
-            ))
+            withAnimation(.easeInOut(duration: 0.5)) {
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(
+                        latitude: pos.latitude,
+                        longitude: pos.longitude
+                    ),
+                    span: MKCoordinateSpan(latitudeDelta: 40, longitudeDelta: 40)
+                ))
+            }
         }
     }
 

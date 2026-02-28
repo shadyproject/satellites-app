@@ -2,7 +2,7 @@ import Foundation
 import SatelliteKit
 
 /// Represents a satellite being tracked with its current state.
-public struct TrackedSatellite: Identifiable, Sendable {
+public struct TrackedSatellite: Identifiable, Hashable, Sendable {
     public let id: Int
     public let name: String
     public let noradID: Int
@@ -13,6 +13,14 @@ public struct TrackedSatellite: Identifiable, Sendable {
         self.name = name
         self.noradID = noradID
         self.tle = tle
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    public static func == (lhs: TrackedSatellite, rhs: TrackedSatellite) -> Bool {
+        lhs.id == rhs.id
     }
 }
 

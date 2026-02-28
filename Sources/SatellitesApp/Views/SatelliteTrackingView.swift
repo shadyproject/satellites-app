@@ -5,43 +5,94 @@ import SatellitesKit
 struct SatelliteTrackingView: View {
     @State private var viewModel = SatelliteViewModel()
     @State private var showInfoPanel = false
+    @State private var showSidebar = false
+    @State private var selectedSatellite: TrackedSatellite? = .usa247
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    @State private var focusTrigger = 0
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Full-screen map
-            GroundTrackMapView(
-                groundTrack: viewModel.groundTrack,
-                currentPosition: viewModel.currentPosition,
-                observer: viewModel.observer,
-                onSatelliteTapped: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showInfoPanel.toggle()
-                    }
-                }
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SatelliteListView(
+                selectedSatellite: $selectedSatellite,
+                satellites: TrackedSatellite.allSatellites
             )
-            .ignoresSafeArea()
-
-            // Sliding info panel
-            if showInfoPanel {
-                SatelliteInfoPanel(
-                    viewModel: viewModel,
-                    isPresented: $showInfoPanel
+            .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
+        } detail: {
+            ZStack(alignment: .bottom) {
+                // Full-screen map
+                GroundTrackMapView(
+                    groundTrack: viewModel.groundTrack,
+                    currentPosition: viewModel.currentPosition,
+                    observer: viewModel.observer,
+                    onSatelliteTapped: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showInfoPanel.toggle()
+                        }
+                    },
+                    focusTrigger: focusTrigger
                 )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+                .ignoresSafeArea()
 
-            // Tracking indicator overlay
-            VStack {
-                HStack {
-                    TrackingStatusBadge(
-                        satelliteName: viewModel.satelliteName,
-                        isTracking: viewModel.isTracking,
-                        isAboveHorizon: viewModel.isAboveHorizon
+                // Sliding info panel
+                if showInfoPanel {
+                    SatelliteInfoPanel(
+                        viewModel: viewModel,
+                        isPresented: $showInfoPanel
                     )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                // Tracking indicator overlay
+                VStack {
+                    HStack {
+                        TrackingStatusBadge(
+                            satelliteName: viewModel.satelliteName,
+                            isTracking: viewModel.isTracking,
+                            isAboveHorizon: viewModel.isAboveHorizon
+                        )
+                        Spacer()
+                    }
+                    .padding()
+                    .padding(.top, 50)
                     Spacer()
                 }
-                .padding()
-                Spacer()
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        withAnimation {
+                            if columnVisibility == .detailOnly {
+                                columnVisibility = .all
+                            } else {
+                                columnVisibility = .detailOnly
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                    }
+                    .help("Toggle satellite list")
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showInfoPanel.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .help("Toggle satellite info")
+                }
+            }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .onChange(of: selectedSatellite) { _, newValue in
+            if let satellite = newValue {
+                viewModel.loadSatellite(satellite)
+                // Delay focus to allow position calculation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    focusTrigger += 1
+                }
             }
         }
         .onAppear {

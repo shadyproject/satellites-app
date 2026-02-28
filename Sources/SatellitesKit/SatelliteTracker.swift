@@ -160,4 +160,88 @@ extension TrackedSatellite {
             line2: "2 25544  51.6400 247.4627 0006703  55.0000 305.1234 15.49815432440000"
         )
     )
+
+    /// Hubble Space Telescope.
+    /// NORAD ID: 20580
+    public static let hubble = TrackedSatellite(
+        name: "Hubble Space Telescope",
+        noradID: 20580,
+        tle: TLE(
+            line0: "HST",
+            line1: "1 20580U 90037B   24056.50000000  .00001200  00000-0  60000-4 0  9990",
+            line2: "2 20580  28.4700 120.0000 0002500  90.0000 270.0000 15.09000000400000"
+        )
+    )
+
+    /// NOAA-19 Weather Satellite.
+    /// NORAD ID: 33591
+    public static let noaa19 = TrackedSatellite(
+        name: "NOAA-19",
+        noradID: 33591,
+        tle: TLE(
+            line0: "NOAA 19",
+            line1: "1 33591U 09005A   24056.50000000  .00000100  00000-0  80000-4 0  9990",
+            line2: "2 33591  99.1900  60.0000 0014000  90.0000 270.0000 14.12500000700000"
+        )
+    )
+
+    /// Terra Earth Observation Satellite.
+    /// NORAD ID: 25994
+    public static let terra = TrackedSatellite(
+        name: "Terra (EOS AM-1)",
+        noradID: 25994,
+        tle: TLE(
+            line0: "TERRA",
+            line1: "1 25994U 99068A   24056.50000000  .00000100  00000-0  50000-4 0  9990",
+            line2: "2 25994  98.2100  90.0000 0001200 100.0000 260.0000 14.57100000100000"
+        )
+    )
+
+    /// Landsat 9.
+    /// NORAD ID: 49260
+    public static let landsat9 = TrackedSatellite(
+        name: "Landsat 9",
+        noradID: 49260,
+        tle: TLE(
+            line0: "LANDSAT 9",
+            line1: "1 49260U 21088A   24056.50000000  .00000100  00000-0  40000-4 0  9990",
+            line2: "2 49260  98.2200  45.0000 0001500  85.0000 275.0000 14.57200000100000"
+        )
+    )
+
+    /// GOES-16 Weather Satellite (Geostationary).
+    /// NORAD ID: 41866
+    public static let goes16 = TrackedSatellite(
+        name: "GOES-16",
+        noradID: 41866,
+        tle: TLE(
+            line0: "GOES 16",
+            line1: "1 41866U 16071A   24056.50000000  .00000010  00000-0  00000-0 0  9990",
+            line2: "2 41866   0.0400 270.0000 0001000  90.0000 270.0000  1.00270000500000"
+        )
+    )
+
+    /// Starlink-1007 (example Starlink satellite).
+    /// NORAD ID: 44713
+    public static let starlink1007 = TrackedSatellite(
+        name: "Starlink-1007",
+        noradID: 44713,
+        tle: TLE(
+            line0: "STARLINK-1007",
+            line1: "1 44713U 19074A   24056.50000000  .00010000  00000-0  70000-3 0  9990",
+            line2: "2 44713  53.0000 200.0000 0001500  80.0000 280.0000 15.06000000200000"
+        )
+    )
+
+    /// All available satellites for tracking.
+    public static let allSatellites: [TrackedSatellite] = [
+        .usa247,
+        .iss,
+        .hubble,
+        .noaa19,
+        .terra,
+        .landsat9,
+        .goes16,
+        .starlink1007,
+    ]
 }
