@@ -9,6 +9,7 @@ struct SatelliteTrackingView: View {
     @Query(sort: \SatelliteModel.name) private var satellites: [SatelliteModel]
 
     @State private var viewModel = SatelliteViewModel()
+    @State private var locationManager = LocationManager()
     @State private var showInfoPanel = false
     @State private var selectedSatellite: SatelliteModel?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
@@ -105,6 +106,15 @@ struct SatelliteTrackingView: View {
         .onChange(of: columnVisibility) { _, newValue in
             preferences.sidebarVisible = (newValue != .detailOnly)
         }
+        .onChange(of: locationManager.authorizationStatus) { _, _ in
+            // When authorization is granted, fetch location
+            if locationManager.isAuthorized && !preferences.hasSetLocationFromDevice {
+                Task {
+                    await locationManager.updateObserverLocation(preferences: preferences)
+                    viewModel.observer = preferences.observer
+                }
+            }
+        }
         .task {
             await initializeApp()
         }
@@ -125,6 +135,11 @@ struct SatelliteTrackingView: View {
             print("Failed to seed satellites: \(error)")
         }
 
+        // Get user location if not already set
+        if !preferences.hasSetLocationFromDevice {
+            await requestUserLocation()
+        }
+
         // Restore saved preferences
         viewModel.observer = preferences.observer
 
@@ -142,6 +157,17 @@ struct SatelliteTrackingView: View {
         }
 
         viewModel.startTracking()
+    }
+
+    private func requestUserLocation() async {
+        // If already authorized, get location immediately
+        if locationManager.isAuthorized {
+            await locationManager.updateObserverLocation(preferences: preferences)
+            viewModel.observer = preferences.observer
+        } else {
+            // Request authorization - onChange handler will fetch location when granted
+            locationManager.requestAuthorization()
+        }
     }
 }
 

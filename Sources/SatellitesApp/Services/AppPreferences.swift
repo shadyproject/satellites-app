@@ -18,6 +18,7 @@ final class AppPreferences {
         static let observerAltitude = "observerAltitude"
         static let observerName = "observerName"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let hasSetLocationFromDevice = "hasSetLocationFromDevice"
         static let sidebarVisible = "sidebarVisible"
     }
 
@@ -66,6 +67,12 @@ final class AppPreferences {
         set { defaults.set(newValue, forKey: Keys.sidebarVisible) }
     }
 
+    /// Whether the location has been set from the device's location services.
+    var hasSetLocationFromDevice: Bool {
+        get { defaults.bool(forKey: Keys.hasSetLocationFromDevice) }
+        set { defaults.set(newValue, forKey: Keys.hasSetLocationFromDevice) }
+    }
+
     // MARK: - Initialization
 
     private init() {
@@ -80,6 +87,7 @@ final class AppPreferences {
             Keys.observerAltitude: 16.0,
             Keys.observerName: "San Francisco",
             Keys.hasCompletedOnboarding: false,
+            Keys.hasSetLocationFromDevice: false,
             Keys.sidebarVisible: false,
         ])
     }
