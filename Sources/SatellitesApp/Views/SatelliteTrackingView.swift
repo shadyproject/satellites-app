@@ -1,20 +1,25 @@
+import SwiftData
 import SwiftUI
 import SatellitesKit
 
 /// Main view for tracking a satellite.
 struct SatelliteTrackingView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AppPreferences.self) private var preferences
+    @Query(sort: \SatelliteModel.name) private var satellites: [SatelliteModel]
+
     @State private var viewModel = SatelliteViewModel()
     @State private var showInfoPanel = false
-    @State private var showSidebar = false
-    @State private var selectedSatellite: TrackedSatellite? = .usa247
+    @State private var selectedSatellite: SatelliteModel?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var focusTrigger = 0
+    @State private var hasInitialized = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SatelliteListView(
                 selectedSatellite: $selectedSatellite,
-                satellites: TrackedSatellite.allSatellites
+                satellites: satellites
             )
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
@@ -88,19 +93,55 @@ struct SatelliteTrackingView: View {
         .navigationSplitViewStyle(.balanced)
         .onChange(of: selectedSatellite) { _, newValue in
             if let satellite = newValue {
-                viewModel.loadSatellite(satellite)
+                let tracked = satellite.toTrackedSatellite()
+                viewModel.loadSatellite(tracked)
+                preferences.selectedSatelliteID = satellite.noradID
                 // Delay focus to allow position calculation
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     focusTrigger += 1
                 }
             }
         }
-        .onAppear {
-            viewModel.startTracking()
+        .onChange(of: columnVisibility) { _, newValue in
+            preferences.sidebarVisible = (newValue != .detailOnly)
+        }
+        .task {
+            await initializeApp()
         }
         .onDisappear {
             viewModel.stopTracking()
         }
+    }
+
+    private func initializeApp() async {
+        guard !hasInitialized else { return }
+        hasInitialized = true
+
+        // Seed default satellites if needed
+        let catalog = SatelliteCatalog(modelContainer: modelContext.container)
+        do {
+            try catalog.seedDefaultsIfNeeded()
+        } catch {
+            print("Failed to seed satellites: \(error)")
+        }
+
+        // Restore saved preferences
+        viewModel.observer = preferences.observer
+
+        // Restore sidebar state
+        if preferences.sidebarVisible {
+            columnVisibility = .all
+        }
+
+        // Select saved satellite or default
+        let savedID = preferences.selectedSatelliteID
+        if let saved = satellites.first(where: { $0.noradID == savedID }) {
+            selectedSatellite = saved
+        } else if let first = satellites.first {
+            selectedSatellite = first
+        }
+
+        viewModel.startTracking()
     }
 }
 
@@ -287,4 +328,6 @@ struct InfoItem: View {
 
 #Preview {
     SatelliteTrackingView()
+        .modelContainer(for: SatelliteModel.self, inMemory: true)
+        .environment(AppPreferences.shared)
 }
