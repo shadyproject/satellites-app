@@ -63,32 +63,33 @@ struct SatelliteTrackingView: View {
                     Spacer()
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        withAnimation {
-                            if columnVisibility == .detailOnly {
-                                columnVisibility = .all
-                            } else {
-                                columnVisibility = .detailOnly
-                            }
+        }
+        .toolbar {
+            #if !os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation {
+                        if columnVisibility == .detailOnly {
+                            columnVisibility = .all
+                        } else {
+                            columnVisibility = .detailOnly
                         }
-                    } label: {
-                        Image(systemName: "sidebar.left")
                     }
-                    .help("Toggle satellite list")
+                } label: {
+                    Image(systemName: "sidebar.left")
                 }
+            }
+            #endif
 
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showInfoPanel.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "info.circle")
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showInfoPanel.toggle()
                     }
-                    .help("Toggle satellite info")
+                } label: {
+                    Image(systemName: "info.circle")
                 }
+                .help("Toggle satellite info")
             }
         }
         .navigationSplitViewStyle(.balanced)
