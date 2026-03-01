@@ -65,12 +65,6 @@
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"
-    },
-    {
-      "filename" : "icon_1280x768.png",
-      "idiom" : "universal",
-      "platform" : "tvos",
-      "size" : "1280x768"
     }
   ],
   "info" : {
