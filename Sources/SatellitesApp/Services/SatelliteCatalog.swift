@@ -76,6 +76,25 @@ final class SatelliteCatalog {
 
         if count == 0 {
             try seedDefaults()
+        } else {
+            // Assign random colors to satellites migrated with default color
+            try assignMissingColors()
+        }
+    }
+
+    /// Assigns random colors to satellites that have the default migration color.
+    private func assignMissingColors() throws {
+        let defaultColor = "3B82F6"
+        let satellites = try fetchAll()
+        var needsSave = false
+
+        for satellite in satellites where satellite.colorHex == defaultColor {
+            satellite.colorHex = SatelliteModel.generateRandomColorHex()
+            needsSave = true
+        }
+
+        if needsSave {
+            try modelContext.save()
         }
     }
 

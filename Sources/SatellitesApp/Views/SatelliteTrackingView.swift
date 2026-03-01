@@ -30,6 +30,8 @@ struct SatelliteTrackingView: View {
                     groundTrack: viewModel.groundTrack,
                     currentPosition: viewModel.currentPosition,
                     observer: viewModel.observer,
+                    satelliteName: selectedSatellite?.name ?? "",
+                    satelliteColor: selectedSatellite?.color ?? .blue,
                     onSatelliteTapped: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showInfoPanel.toggle()
@@ -43,6 +45,7 @@ struct SatelliteTrackingView: View {
                 if showInfoPanel {
                     SatelliteInfoPanel(
                         viewModel: viewModel,
+                        satelliteColor: selectedSatellite?.color ?? .blue,
                         isPresented: $showInfoPanel
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -53,6 +56,7 @@ struct SatelliteTrackingView: View {
                     HStack {
                         TrackingStatusBadge(
                             satelliteName: viewModel.satelliteName,
+                            satelliteColor: selectedSatellite?.color ?? .blue,
                             isTracking: viewModel.isTracking,
                             isAboveHorizon: viewModel.isAboveHorizon
                         )
@@ -176,14 +180,21 @@ struct SatelliteTrackingView: View {
 
 struct TrackingStatusBadge: View {
     let satelliteName: String
+    let satelliteColor: Color
     let isTracking: Bool
     let isAboveHorizon: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(isTracking ? (isAboveHorizon ? .green : .orange) : .red)
-                .frame(width: 8, height: 8)
+            ZStack {
+                Circle()
+                    .fill(satelliteColor)
+                    .frame(width: 12, height: 12)
+
+                Circle()
+                    .fill(isTracking ? (isAboveHorizon ? .green : .orange) : .red)
+                    .frame(width: 6, height: 6)
+            }
 
             Text(satelliteName)
                 .font(.subheadline)
@@ -199,6 +210,7 @@ struct TrackingStatusBadge: View {
 
 struct SatelliteInfoPanel: View {
     let viewModel: SatelliteViewModel
+    let satelliteColor: Color
     @Binding var isPresented: Bool
 
     var body: some View {
@@ -210,24 +222,25 @@ struct SatelliteInfoPanel: View {
                 .padding(.top, 8)
                 .padding(.bottom, 12)
 
-            // Header with mission patch
+            // Header with satellite icon
             HStack(alignment: .top, spacing: 12) {
-                // Mission patch
-                Image("NROL39PatchLarge")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 80, height: 80)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                // Satellite icon
+                ZStack {
+                    Circle()
+                        .fill(satelliteColor)
+                        .frame(width: 60, height: 60)
+                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+
+                    Image(systemName: "satellite.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.white)
+                }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.satelliteName)
                         .font(.headline)
                     Text("NORAD \(viewModel.noradID)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("NROL-39 Mission")
-                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
 
