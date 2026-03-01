@@ -85,6 +85,45 @@ final class LocationManager: NSObject {
         }
     }
 
+    /// Updates observer location only if moved more than threshold distance.
+    /// - Parameters:
+    ///   - preferences: App preferences to check and update
+    ///   - thresholdMiles: Distance threshold in miles (default 10)
+    /// - Returns: true if location was updated, false otherwise
+    @discardableResult
+    func updateObserverLocationIfNeeded(
+        preferences: AppPreferences,
+        thresholdMiles: Double = 10
+    ) async -> Bool {
+        do {
+            let location = try await requestLocation()
+            currentLocation = location
+
+            let storedObserver = preferences.observer
+            let storedLocation = CLLocation(
+                latitude: storedObserver.latitude,
+                longitude: storedObserver.longitude
+            )
+
+            let distanceMeters = location.distance(from: storedLocation)
+            let distanceMiles = distanceMeters / 1609.344
+
+            if distanceMiles > thresholdMiles {
+                let name = await reverseGeocode(location) ?? "Current Location"
+                let groundStation = toGroundStation(location, name: name)
+                preferences.observer = groundStation
+                preferences.hasSetLocationFromDevice = true
+                return true
+            }
+
+            return false
+        } catch {
+            lastError = error
+            print("Failed to get location: \(error)")
+            return false
+        }
+    }
+
     /// Reverse geocodes a location to get a place name.
     private func reverseGeocode(_ location: CLLocation) async -> String? {
         let geocoder = CLGeocoder()
