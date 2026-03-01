@@ -140,9 +140,18 @@ struct SatelliteTrackingView: View {
             print("Failed to seed satellites: \(error)")
         }
 
-        // Get user location if not already set
+        // Handle location: either get initial location or check for significant change
         if !preferences.hasSetLocationFromDevice {
             await requestUserLocation()
+        } else if locationManager.isAuthorized {
+            // Check if location has changed by more than 10 miles
+            let updated = await locationManager.updateObserverLocationIfNeeded(
+                preferences: preferences,
+                thresholdMiles: 10
+            )
+            if updated {
+                viewModel.observer = preferences.observer
+            }
         }
 
         // Restore saved preferences
