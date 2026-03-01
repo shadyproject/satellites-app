@@ -25,15 +25,20 @@ struct SatelliteRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Satellite icon
+            // Satellite icon with unique color
             ZStack {
                 Circle()
-                    .fill(isSelected ? .blue : .secondary.opacity(0.3))
+                    .fill(satellite.color)
                     .frame(width: 32, height: 32)
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected ? .white : .clear, lineWidth: 2)
+                    )
+                    .shadow(color: isSelected ? satellite.color.opacity(0.5) : .clear, radius: 4)
 
                 Image(systemName: satelliteIcon)
                     .font(.system(size: 14))
-                    .foregroundStyle(isSelected ? .white : .secondary)
+                    .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 2) {

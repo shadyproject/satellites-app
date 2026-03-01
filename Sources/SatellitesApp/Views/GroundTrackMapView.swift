@@ -7,6 +7,8 @@ struct GroundTrackMapView: View {
     let groundTrack: [GeodeticPosition]
     let currentPosition: GeodeticPosition?
     let observer: GroundStation
+    var satelliteName: String = ""
+    var satelliteColor: Color = .blue
     var onSatelliteTapped: (() -> Void)?
     var focusTrigger: Int = 0
 
@@ -17,7 +19,7 @@ struct GroundTrackMapView: View {
             // Ground track polyline segments
             ForEach(groundTrackSegments, id: \.0) { segment in
                 MapPolyline(coordinates: segment.1)
-                    .stroke(.blue.opacity(0.7), lineWidth: 2)
+                    .stroke(satelliteColor.opacity(0.7), lineWidth: 2)
             }
 
             // Current satellite position
@@ -29,7 +31,12 @@ struct GroundTrackMapView: View {
                         longitude: pos.longitude
                     )
                 ) {
-                    SatelliteMarker(onTap: onSatelliteTapped)
+                    SatelliteMarker(
+                        name: satelliteName,
+                        altitude: pos.altitude,
+                        color: satelliteColor,
+                        onTap: onSatelliteTapped
+                    )
                 }
             }
 
@@ -114,29 +121,61 @@ struct GroundTrackMapView: View {
 
 /// Marker for satellite position on map.
 struct SatelliteMarker: View {
+    var name: String = ""
+    var altitude: Double = 0
+    var color: Color = .blue
     var onTap: (() -> Void)?
 
     @State private var isPulsing = false
+
+    private var altitudeString: String {
+        if altitude >= 1000 {
+            return String(format: "%.0f km", altitude)
+        } else {
+            return String(format: "%.1f km", altitude)
+        }
+    }
 
     var body: some View {
         Button {
             onTap?()
         } label: {
-            ZStack {
-                // Pulse ring
-                Circle()
-                    .stroke(.yellow.opacity(0.6), lineWidth: 2)
-                    .frame(width: 48, height: 48)
-                    .scaleEffect(isPulsing ? 1.4 : 1.0)
-                    .opacity(isPulsing ? 0 : 0.8)
+            VStack(spacing: 4) {
+                // Name and altitude label
+                VStack(spacing: 2) {
+                    Text(name)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                    Text(altitudeString)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(color, in: RoundedRectangle(cornerRadius: 6))
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
 
-                // NROL-39 mission patch
-                Image("NROL39Patch")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                // Satellite icon with pulse
+                ZStack {
+                    // Pulse ring
+                    Circle()
+                        .stroke(color.opacity(0.6), lineWidth: 2)
+                        .frame(width: 48, height: 48)
+                        .scaleEffect(isPulsing ? 1.4 : 1.0)
+                        .opacity(isPulsing ? 0 : 0.8)
+
+                    // Satellite icon
+                    ZStack {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 36, height: 36)
+                            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+
+                        Image(systemName: "satellite.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white)
+                    }
+                }
             }
         }
         .buttonStyle(.plain)
@@ -174,6 +213,8 @@ struct ObserverMarker: View {
             date: Date()
         ),
         observer: .sanFrancisco,
+        satelliteName: "ISS",
+        satelliteColor: .orange,
         onSatelliteTapped: {}
     )
 }
