@@ -14,6 +14,7 @@ struct SatelliteTrackingView: View {
     @State private var selectedSatellite: SatelliteModel?
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var focusTrigger = 0
+    @State private var observerFocusTrigger = 0
     @State private var hasInitialized = false
 
     var body: some View {
@@ -37,7 +38,8 @@ struct SatelliteTrackingView: View {
                             showInfoPanel.toggle()
                         }
                     },
-                    focusTrigger: focusTrigger
+                    focusTrigger: focusTrigger,
+                    observerFocusTrigger: observerFocusTrigger
                 )
                 .ignoresSafeArea()
 
@@ -101,6 +103,7 @@ struct SatelliteTrackingView: View {
                     Task {
                         await locationManager.updateObserverLocation(preferences: preferences)
                         viewModel.observer = preferences.observer
+                        observerFocusTrigger += 1
                     }
                 } label: {
                     Image(systemName: "location.fill")

@@ -11,6 +11,7 @@ struct GroundTrackMapView: View {
     var satelliteColor: Color = .blue
     var onSatelliteTapped: (() -> Void)?
     var focusTrigger: Int = 0
+    var observerFocusTrigger: Int = 0
 
     @State private var cameraPosition: MapCameraPosition = .automatic
 
@@ -61,6 +62,21 @@ struct GroundTrackMapView: View {
         }
         .onChange(of: focusTrigger) { _, _ in
             focusOnSatellite()
+        }
+        .onChange(of: observerFocusTrigger) { _, _ in
+            focusOnObserver()
+        }
+    }
+
+    private func focusOnObserver() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: CLLocationCoordinate2D(
+                    latitude: observer.latitude,
+                    longitude: observer.longitude
+                ),
+                span: MKCoordinateSpan(latitudeDelta: 10, longitudeDelta: 10)
+            ))
         }
     }
 
