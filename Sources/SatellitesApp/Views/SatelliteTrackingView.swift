@@ -95,6 +95,18 @@ struct SatelliteTrackingView: View {
                 }
                 .help("Toggle satellite info")
             }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task {
+                        await locationManager.updateObserverLocation(preferences: preferences)
+                        viewModel.observer = preferences.observer
+                    }
+                } label: {
+                    Image(systemName: "location.fill")
+                }
+                .help("Update current location")
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: selectedSatellite) { _, newValue in
