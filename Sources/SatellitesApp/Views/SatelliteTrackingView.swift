@@ -17,6 +17,11 @@ struct SatelliteTrackingView: View {
     @State private var observerFocusTrigger = 0
     @State private var hasInitialized = false
 
+    /// Satellites currently visible on the map
+    private var visibleSatellites: [SatelliteModel] {
+        satellites.filter(\.isVisible)
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SatelliteListView(
@@ -25,115 +30,23 @@ struct SatelliteTrackingView: View {
             )
             .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 300)
         } detail: {
-            ZStack(alignment: .bottom) {
-                // Full-screen map
-                GroundTrackMapView(
-                    groundTrack: viewModel.groundTrack,
-                    currentPosition: viewModel.currentPosition,
-                    observer: viewModel.observer,
-                    satelliteName: selectedSatellite?.name ?? "",
-                    satelliteColor: selectedSatellite?.color ?? .blue,
-                    onSatelliteTapped: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showInfoPanel.toggle()
-                        }
-                    },
-                    focusTrigger: focusTrigger,
-                    observerFocusTrigger: observerFocusTrigger
-                )
-                .ignoresSafeArea()
-
-                // Sliding info panel
-                if showInfoPanel {
-                    SatelliteInfoPanel(
-                        viewModel: viewModel,
-                        satelliteColor: selectedSatellite?.color ?? .blue,
-                        isPresented: $showInfoPanel
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                // Tracking indicator overlay
-                VStack {
-                    HStack {
-                        TrackingStatusBadge(
-                            satelliteName: viewModel.satelliteName,
-                            satelliteColor: selectedSatellite?.color ?? .blue,
-                            isTracking: viewModel.isTracking,
-                            isAboveHorizon: viewModel.isAboveHorizon
-                        )
-                        Spacer()
-                    }
-                    .padding()
-                    .padding(.top, 50)
-                    Spacer()
-                }
-            }
+            detailContent
         }
         .toolbar {
-            #if !os(macOS)
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    withAnimation {
-                        if columnVisibility == .detailOnly {
-                            columnVisibility = .all
-                        } else {
-                            columnVisibility = .detailOnly
-                        }
-                    }
-                } label: {
-                    Image(systemName: "sidebar.left")
-                }
-            }
-            #endif
-
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showInfoPanel.toggle()
-                    }
-                } label: {
-                    Image(systemName: "info.circle")
-                }
-                .help("Toggle satellite info")
-            }
-
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    Task {
-                        await locationManager.updateObserverLocation(preferences: preferences)
-                        viewModel.observer = preferences.observer
-                        observerFocusTrigger += 1
-                    }
-                } label: {
-                    Image(systemName: "location.fill")
-                }
-                .help("Update current location")
-            }
+            toolbarContent
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: selectedSatellite) { _, newValue in
-            if let satellite = newValue {
-                let tracked = satellite.toTrackedSatellite()
-                viewModel.loadSatellite(tracked)
-                preferences.selectedSatelliteID = satellite.noradID
-                // Delay focus to allow position calculation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    focusTrigger += 1
-                }
-            }
+            handleSelectedSatelliteChange(newValue)
+        }
+        .onChange(of: visibleSatellites) { _, newValue in
+            updateVisibleSatellites(newValue)
         }
         .onChange(of: columnVisibility) { _, newValue in
             preferences.sidebarVisible = (newValue != .detailOnly)
         }
         .onChange(of: locationManager.authorizationStatus) { _, _ in
-            // When authorization is granted, fetch location
-            if locationManager.isAuthorized && !preferences.hasSetLocationFromDevice {
-                Task {
-                    await locationManager.updateObserverLocation(preferences: preferences)
-                    viewModel.observer = preferences.observer
-                }
-            }
+            handleAuthorizationChange()
         }
         .task {
             await initializeApp()
@@ -141,6 +54,139 @@ struct SatelliteTrackingView: View {
         .onDisappear {
             viewModel.stopTracking()
         }
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        ZStack(alignment: .bottom) {
+            mapView
+                .ignoresSafeArea()
+
+            // Sliding info panel
+            if showInfoPanel {
+                SatelliteInfoPanel(
+                    viewModel: viewModel,
+                    satelliteColor: selectedSatellite?.color ?? .blue,
+                    isPresented: $showInfoPanel
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            // Tracking indicator overlay
+            trackingOverlay
+        }
+    }
+
+    private var mapView: some View {
+        GroundTrackMapView(
+            groundTrack: viewModel.groundTrack,
+            currentPosition: viewModel.currentPosition,
+            observer: viewModel.observer,
+            focusTrigger: focusTrigger,
+            observerFocusTrigger: observerFocusTrigger,
+            visibleSatellites: viewModel.visibleSatellites,
+            selectedSatelliteID: selectedSatellite?.noradID,
+            onSatelliteSelected: handleSatelliteSelection
+        )
+    }
+
+    private var trackingOverlay: some View {
+        VStack {
+            HStack {
+                TrackingStatusBadge(
+                    satelliteName: viewModel.satelliteName,
+                    satelliteColor: selectedSatellite?.color ?? .blue,
+                    isTracking: viewModel.isTracking,
+                    isAboveHorizon: viewModel.isAboveHorizon
+                )
+                Spacer()
+            }
+            .padding()
+            .padding(.top, 50)
+            Spacer()
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        #if !os(macOS)
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                withAnimation {
+                    columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+                }
+            } label: {
+                Image(systemName: "sidebar.left")
+            }
+        }
+        #endif
+
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showInfoPanel.toggle()
+                }
+            } label: {
+                Image(systemName: "info.circle")
+            }
+            .help("Toggle satellite info")
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                Task {
+                    await locationManager.updateObserverLocation(preferences: preferences)
+                    viewModel.observer = preferences.observer
+                    observerFocusTrigger += 1
+                }
+            } label: {
+                Image(systemName: "location.fill")
+            }
+            .help("Update current location")
+        }
+    }
+
+    // MARK: - Event Handlers
+
+    private func handleSatelliteSelection(_ noradID: Int) {
+        if let satellite = satellites.first(where: { $0.noradID == noradID }) {
+            selectedSatellite = satellite
+        }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            showInfoPanel.toggle()
+        }
+    }
+
+    private func handleSelectedSatelliteChange(_ satellite: SatelliteModel?) {
+        guard let satellite else { return }
+        let tracked = satellite.toTrackedSatellite()
+        viewModel.loadSatellite(tracked)
+        preferences.selectedSatelliteID = satellite.noradID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            focusTrigger += 1
+        }
+    }
+
+    private func handleAuthorizationChange() {
+        if locationManager.isAuthorized && !preferences.hasSetLocationFromDevice {
+            Task {
+                await locationManager.updateObserverLocation(preferences: preferences)
+                viewModel.observer = preferences.observer
+            }
+        }
+    }
+
+    /// Converts visible satellite models to tracking info and updates view model.
+    private func updateVisibleSatellites(_ satellites: [SatelliteModel]) {
+        let trackingInfos = satellites.map { satellite in
+            TrackedSatelliteInfo(
+                noradID: satellite.noradID,
+                name: satellite.name,
+                colorHex: satellite.colorHex,
+                tracked: satellite.toTrackedSatellite()
+            )
+        }
+        viewModel.updateVisibleSatellites(trackingInfos)
     }
 
     private func initializeApp() async {
@@ -184,6 +230,9 @@ struct SatelliteTrackingView: View {
         } else if let first = satellites.first {
             selectedSatellite = first
         }
+
+        // Initialize visible satellites for multi-satellite display
+        updateVisibleSatellites(visibleSatellites)
 
         viewModel.startTracking()
     }

@@ -4,6 +4,7 @@ import SatellitesKit
 
 /// Map view showing satellite ground track.
 struct GroundTrackMapView: View {
+    // Single satellite tracking (for selected satellite)
     let groundTrack: [GeodeticPosition]
     let currentPosition: GeodeticPosition?
     let observer: GroundStation
@@ -13,31 +14,51 @@ struct GroundTrackMapView: View {
     var focusTrigger: Int = 0
     var observerFocusTrigger: Int = 0
 
+    // Multiple satellite display
+    var visibleSatellites: [VisibleSatelliteData] = []
+    var selectedSatelliteID: Int?
+    var onSatelliteSelected: ((Int) -> Void)?
+
     @State private var cameraPosition: MapCameraPosition = .automatic
 
     var body: some View {
         Map(position: $cameraPosition) {
-            // Ground track polyline segments
-            ForEach(groundTrackSegments, id: \.0) { segment in
-                MapPolyline(coordinates: segment.1)
-                    .stroke(satelliteColor.opacity(0.7), lineWidth: 2)
-            }
+            // Render all visible satellites
+            ForEach(visibleSatellites) { satellite in
+                let color = Color(hex: satellite.color) ?? .blue
+                let isSelected = satellite.id == selectedSatelliteID
 
-            // Current satellite position
-            if let pos = currentPosition {
-                Annotation(
-                    "",
-                    coordinate: CLLocationCoordinate2D(
-                        latitude: pos.latitude,
-                        longitude: pos.longitude
-                    )
-                ) {
-                    SatelliteMarker(
-                        name: satelliteName,
-                        altitude: pos.altitude,
-                        color: satelliteColor,
-                        onTap: onSatelliteTapped
-                    )
+                // Ground track polyline segments for this satellite
+                ForEach(
+                    groundTrackSegments(for: satellite.groundTrack, satelliteID: satellite.id),
+                    id: \.0
+                ) { segment in
+                    MapPolyline(coordinates: segment.1)
+                        .stroke(
+                            color.opacity(isSelected ? 0.8 : 0.5),
+                            lineWidth: isSelected ? 2.5 : 1.5
+                        )
+                }
+
+                // Current satellite position
+                if let pos = satellite.position {
+                    Annotation(
+                        "",
+                        coordinate: CLLocationCoordinate2D(
+                            latitude: pos.latitude,
+                            longitude: pos.longitude
+                        )
+                    ) {
+                        SatelliteMarker(
+                            name: satellite.name,
+                            altitude: pos.altitude,
+                            color: color,
+                            isSelected: isSelected,
+                            onTap: {
+                                onSatelliteSelected?(satellite.id)
+                            }
+                        )
+                    }
                 }
             }
 
@@ -81,7 +102,16 @@ struct GroundTrackMapView: View {
     }
 
     private func focusOnSatellite() {
-        if let pos = currentPosition {
+        // Focus on selected satellite, or first visible one
+        let targetPosition: GeodeticPosition?
+        if let selectedID = selectedSatelliteID,
+           let selected = visibleSatellites.first(where: { $0.id == selectedID }) {
+            targetPosition = selected.position
+        } else {
+            targetPosition = visibleSatellites.first?.position ?? currentPosition
+        }
+
+        if let pos = targetPosition {
             withAnimation(.easeInOut(duration: 0.5)) {
                 cameraPosition = .region(MKCoordinateRegion(
                     center: CLLocationCoordinate2D(
@@ -95,28 +125,28 @@ struct GroundTrackMapView: View {
     }
 
     /// Splits ground track into segments that don't cross the antimeridian.
-    private var groundTrackSegments: [(Int, [CLLocationCoordinate2D])] {
-        guard !groundTrack.isEmpty else { return [] }
+    private func groundTrackSegments(for track: [GeodeticPosition], satelliteID: Int) -> [(String, [CLLocationCoordinate2D])] {
+        guard !track.isEmpty else { return [] }
 
-        var segments: [(Int, [CLLocationCoordinate2D])] = []
+        var segments: [(String, [CLLocationCoordinate2D])] = []
         var currentSegment: [CLLocationCoordinate2D] = []
         var segmentIndex = 0
 
-        for i in 0..<groundTrack.count {
-            let pos = groundTrack[i]
+        for i in 0..<track.count {
+            let pos = track[i]
             let coord = CLLocationCoordinate2D(
                 latitude: pos.latitude,
                 longitude: pos.longitude
             )
 
             if i > 0 {
-                let prevPos = groundTrack[i - 1]
+                let prevPos = track[i - 1]
                 let lonDiff = abs(pos.longitude - prevPos.longitude)
 
                 // If longitude jumps more than 180 degrees, start new segment
                 if lonDiff > 180 {
                     if !currentSegment.isEmpty {
-                        segments.append((segmentIndex, currentSegment))
+                        segments.append(("\(satelliteID)-\(segmentIndex)", currentSegment))
                         segmentIndex += 1
                     }
                     currentSegment = [coord]
@@ -128,7 +158,7 @@ struct GroundTrackMapView: View {
         }
 
         if !currentSegment.isEmpty {
-            segments.append((segmentIndex, currentSegment))
+            segments.append(("\(satelliteID)-\(segmentIndex)", currentSegment))
         }
 
         return segments
@@ -140,6 +170,7 @@ struct SatelliteMarker: View {
     var name: String = ""
     var altitude: Double = 0
     var color: Color = .blue
+    var isSelected: Bool = true
     var onTap: (() -> Void)?
 
     @State private var isPulsing = false
@@ -156,39 +187,52 @@ struct SatelliteMarker: View {
         Button {
             onTap?()
         } label: {
-            VStack(spacing: 4) {
-                // Name and altitude label
-                VStack(spacing: 2) {
+            VStack(spacing: isSelected ? 4 : 2) {
+                // Label: larger with altitude when selected, smaller name-only otherwise
+                if isSelected {
+                    VStack(spacing: 2) {
+                        Text(name)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Text(altitudeString)
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(color, in: RoundedRectangle(cornerRadius: 6))
+                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                } else {
                     Text(name)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                    Text(altitudeString)
                         .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(color.opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
+                        .shadow(color: .black.opacity(0.2), radius: 1, y: 1)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(color, in: RoundedRectangle(cornerRadius: 6))
-                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
 
                 // Satellite icon with pulse
                 ZStack {
-                    // Pulse ring
-                    Circle()
-                        .stroke(color.opacity(0.6), lineWidth: 2)
-                        .frame(width: 48, height: 48)
-                        .scaleEffect(isPulsing ? 1.4 : 1.0)
-                        .opacity(isPulsing ? 0 : 0.8)
+                    // Pulse ring (only for selected)
+                    if isSelected {
+                        Circle()
+                            .stroke(color.opacity(0.6), lineWidth: 2)
+                            .frame(width: 48, height: 48)
+                            .scaleEffect(isPulsing ? 1.4 : 1.0)
+                            .opacity(isPulsing ? 0 : 0.8)
+                    }
 
                     // Satellite icon
                     ZStack {
                         Circle()
                             .fill(color)
-                            .frame(width: 36, height: 36)
-                            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                            .frame(width: isSelected ? 36 : 24, height: isSelected ? 36 : 24)
+                            .shadow(color: .black.opacity(0.4), radius: isSelected ? 4 : 2, y: 2)
 
                         Image(systemName: "satellite.fill")
-                            .font(.system(size: 18))
+                            .font(.system(size: isSelected ? 18 : 12))
                             .foregroundStyle(.white)
                     }
                 }
@@ -196,8 +240,19 @@ struct SatelliteMarker: View {
         }
         .buttonStyle(.plain)
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
-                isPulsing = true
+            if isSelected {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                    isPulsing = true
+                }
+            }
+        }
+        .onChange(of: isSelected) { _, newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+                    isPulsing = true
+                }
+            } else {
+                isPulsing = false
             }
         }
     }
@@ -222,15 +277,22 @@ struct ObserverMarker: View {
 #Preview {
     GroundTrackMapView(
         groundTrack: [],
-        currentPosition: GeodeticPosition(
-            latitude: 37.0,
-            longitude: -122.0,
-            altitude: 1100,
-            date: Date()
-        ),
+        currentPosition: nil,
         observer: .sanFrancisco,
-        satelliteName: "ISS",
-        satelliteColor: .orange,
-        onSatelliteTapped: {}
+        visibleSatellites: [
+            VisibleSatelliteData(
+                id: 25544,
+                name: "ISS",
+                color: "FF6B35",
+                position: GeodeticPosition(
+                    latitude: 37.0,
+                    longitude: -122.0,
+                    altitude: 420,
+                    date: Date()
+                ),
+                groundTrack: []
+            )
+        ],
+        selectedSatelliteID: 25544
     )
 }
