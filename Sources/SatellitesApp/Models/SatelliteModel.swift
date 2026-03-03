@@ -32,6 +32,9 @@ final class SatelliteModel {
     /// Unique color for this satellite (stored as hex string)
     var colorHex: String = "3B82F6"
 
+    /// Whether this satellite is visible on the map
+    var isVisible: Bool = true
+
     init(
         noradID: Int,
         name: String,
@@ -41,7 +44,8 @@ final class SatelliteModel {
         tleUpdatedAt: Date = Date(),
         createdAt: Date = Date(),
         isUserAdded: Bool = false,
-        colorHex: String? = nil
+        colorHex: String? = nil,
+        isVisible: Bool = true
     ) {
         self.noradID = noradID
         self.name = name
@@ -52,6 +56,7 @@ final class SatelliteModel {
         self.createdAt = createdAt
         self.isUserAdded = isUserAdded
         self.colorHex = colorHex ?? Self.generateRandomColorHex()
+        self.isVisible = isVisible
     }
 
     /// Generates a random vibrant color hex string.

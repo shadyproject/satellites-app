@@ -8,8 +8,14 @@ struct SatelliteListView: View {
 
     var body: some View {
         List(satellites, selection: $selectedSatellite) { satellite in
-            SatelliteRow(satellite: satellite, isSelected: selectedSatellite?.id == satellite.id)
-                .tag(satellite)
+            SatelliteRow(
+                satellite: satellite,
+                isSelected: selectedSatellite?.id == satellite.id,
+                onToggleVisibility: {
+                    satellite.isVisible.toggle()
+                }
+            )
+            .tag(satellite)
         }
         .listStyle(.sidebar)
         .navigationTitle("Satellites")
@@ -22,13 +28,14 @@ struct SatelliteListView: View {
 struct SatelliteRow: View {
     let satellite: SatelliteModel
     let isSelected: Bool
+    var onToggleVisibility: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
             // Satellite icon with unique color
             ZStack {
                 Circle()
-                    .fill(satellite.color)
+                    .fill(satellite.color.opacity(satellite.isVisible ? 1.0 : 0.4))
                     .frame(width: 32, height: 32)
                     .overlay(
                         Circle()
@@ -38,7 +45,7 @@ struct SatelliteRow: View {
 
                 Image(systemName: satelliteIcon)
                     .font(.system(size: 14))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.white.opacity(satellite.isVisible ? 1.0 : 0.6))
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -46,6 +53,7 @@ struct SatelliteRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(1)
+                    .foregroundStyle(satellite.isVisible ? .primary : .secondary)
 
                 HStack(spacing: 4) {
                     Text("NORAD \(satellite.noradID)")
@@ -64,6 +72,17 @@ struct SatelliteRow: View {
             }
 
             Spacer()
+
+            // Visibility toggle button
+            Button {
+                onToggleVisibility?()
+            } label: {
+                Image(systemName: satellite.isVisible ? "eye.fill" : "eye.slash")
+                    .font(.system(size: 14))
+                    .foregroundStyle(satellite.isVisible ? satellite.color : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(satellite.isVisible ? "Hide on map" : "Show on map")
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
